@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { setupNeon } from "./providers/neon";
 import { setupSupabase } from "./providers/supabase";
 import { setupRailway } from "./providers/railway";
-import { setupLocal } from "./providers/local";
+import { setupLocalDocker } from "./providers/local-docker";
 import { setupEnvironment, validateConnectionString } from "./env";
 
 export async function handleDatabaseSetup(): Promise<string> {
@@ -43,7 +43,7 @@ export async function handleDatabaseSetup(): Promise<string> {
       break;
 
     case "local":
-      databaseUrl = await setupLocal();
+      databaseUrl = await setupLocalDocker();
       break;
 
     case "manual":
