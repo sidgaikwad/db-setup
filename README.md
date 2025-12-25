@@ -1,8 +1,8 @@
-# 🗄️ Create DB Setup
+# 🗄️ Database Setup CLI
 
-> Interactive CLI for setting up PostgreSQL databases with multiple providers
+> Interactive CLI for setting up PostgreSQL databases with multiple providers (Neon, Supabase, Railway, Local Docker)
 
-[![npm version](https://badge.fury.io/js/%40sidgaikwad%2Fcreate-db-setup.svg)](https://www.npmjs.com/package/@sidgaikwad/create-db-setup)
+[![npm version](https://badge.fury.io/js/%40sidgaikwad%2Fdb-setup.svg)](https://www.npmjs.com/package/@sidgaikwad/db-setup)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features
@@ -10,91 +10,115 @@
 - 🎯 **Multiple Providers**: Neon, Supabase, Railway, Local Docker
 - 🌍 **Region Selection**: Choose from 11+ global regions with emoji flags
 - ⚙️ **Auto Configuration**: Automatically writes database URL to .env
-- 📁 **Custom .env Paths**: Support for any .env file location (.env, .env.local, config/.env, etc.)
-- 🏷️ **Custom Variable Names**: Use any variable name (DATABASE_URL, POSTGRES_URL, DB_URL, etc.)
+- 📁 **Custom .env Paths**: Support for any .env file location
+- 🏷️ **Custom Variable Names**: Use any variable name (DATABASE_URL, POSTGRES_URL, etc.)
 - 💾 **Safe Updates**: Creates backups before modifying files
 - 🔒 **Overwrite Protection**: Asks before overwriting existing variables
 - 🎨 **Beautiful CLI**: Color-coded, interactive prompts
-- 🛡️ **Type Safe**: Written in TypeScript
 - 🚀 **Zero Config**: Works out of the box with Bun or Node.js
-- ⚡ **Fast**: Optimized for Bun runtime
 
 ## 🚀 Quick Start
 
-### Run with bunx (Recommended)
-
-```bash
-bunx @sidgaikwad/create-db-setup
-```
-
-### Or with npx
-
-```bash
-npx @sidgaikwad/create-db-setup
-```
-
-### Or Install Globally
+### Option 1: Run Without Installing (Recommended)
 
 ```bash
 # With Bun
-bun install -g @sidgaikwad/create-db-setup
+bunx @sidgaikwad/db-setup
 
 # With npm
-npm install -g @sidgaikwad/create-db-setup
-
-# Then run
-create-db-setup
+npx @sidgaikwad/db-setup
 ```
 
-### Or use the shorter alias
+### Option 2: Install Locally
 
 ```bash
-bunx @sidgaikwad/create-db-setup
-# or after global install
+# With Bun
+bun add @sidgaikwad/db-setup
+
+# With npm
+npm install @sidgaikwad/db-setup
+
+# With pnpm
+pnpm add @sidgaikwad/db-setup
+
+# With yarn
+yarn add @sidgaikwad/db-setup
+```
+
+**Then run:**
+
+```bash
+# Using package scripts
+bun run create-db-setup
+# or
+npm run create-db-setup
+
+# Using npx/bunx
+bunx @sidgaikwad/db-setup
+# or
+npx @sidgaikwad/db-setup
+```
+
+### Option 3: Install Globally
+
+```bash
+# With Bun
+bun install -g @sidgaikwad/db-setup
+
+# With npm
+npm install -g @sidgaikwad/db-setup
+
+# Then run anywhere
+create-db-setup
+# or
 db-setup
 ```
 
-## 📦 Supported Providers
+## 📦 Adding to Your Project
 
-### 🔷 Neon (Serverless PostgreSQL)
+### In Next.js, Remix, or any Node.js project:
 
-- Automatic CLI authentication
-- 11 global regions (AWS + Azure)
-- Pooled connections
-- Free tier available
+```bash
+# Install the package
+bun add @sidgaikwad/db-setup
 
-### 🟢 Supabase (Open Source Firebase Alternative)
+# Add to package.json scripts (optional)
+```
 
-- Project creation via CLI
-- Global region selection
-- Connection pooling
-- Generous free tier
+**package.json:**
 
-### 🚂 Railway (Platform as a Service)
+```json
+{
+  "scripts": {
+    "db:setup": "create-db-setup",
+    "setup": "create-db-setup"
+  }
+}
+```
 
-- One-click PostgreSQL deployment
-- Automatic environment variables
-- Simple pricing
+**Then run:**
 
-### 🐳 Local Docker
-
-- Instant local PostgreSQL
-- Pre-configured docker-compose
-- Perfect for development
+```bash
+bun run db:setup
+# or
+npm run db:setup
+```
 
 ## 🎯 Usage
 
-Simply run the CLI and follow the prompts:
-
 ```bash
-$ bunx @sidgaikwad/create-db-setup
+$ bunx @sidgaikwad/db-setup
+
+🗄️  Database Setup CLI
+
+Configure your PostgreSQL database with ease!
 
 ================ Database Setup ================
 
-? Choose your PostgreSQL provider:
-  ❯ Neon (Serverless)
-    Supabase (Cloud)
-    Railway
+? Choose your PostgreSQL provider: (Use arrow keys)
+  ❯ Neon (Serverless PostgreSQL)
+    Supabase (Open Source Firebase Alternative)
+    Railway (Platform as a Service)
     Local PostgreSQL (Docker)
     I already have a DATABASE_URL
     I'll configure later
@@ -103,39 +127,177 @@ $ bunx @sidgaikwad/create-db-setup
 
 ================ Environment Configuration ================
 
-? Enter the path to your .env file: .env
-? Enter the environment variable name for your database URL: DATABASE_URL
+? Select your .env file location: (Use arrow keys)
+  ❯ .env (Root directory)
+    .env.local (Local environment)
+    .env.development (Development)
+    .env.production (Production)
+    config/.env (Config directory)
+    apps/backend/.env (Monorepo backend)
+    Custom path...
 
-✅ DATABASE_URL has been added to your .env file!
+? Select the environment variable name: (Use arrow keys)
+  ❯ DATABASE_URL (Standard)
+    POSTGRES_URL (Alternative)
+    DB_URL (Short form)
+    DB_CONNECTION_STRING (Descriptive)
+    DIRECT_URL (Prisma direct)
+    DATABASE_CONNECTION (Verbose)
+    Custom variable name...
+
+✅ Database configured successfully!
+
+🎉 Setup completed successfully!
 ```
 
-### Flexible Configuration
+## 📚 Supported Providers
 
-The CLI now supports:
+### 🔷 Neon (Serverless PostgreSQL)
 
-- **Custom .env file paths**: `.env`, `.env.local`, `config/.env`, etc.
-- **Custom variable names**: `DATABASE_URL`, `POSTGRES_URL`, `DB_CONNECTION_STRING`, etc.
-- **Automatic backup**: Creates `.env.backup` before making changes
-- **Overwrite protection**: Asks before overwriting existing variables
+- Automatic CLI authentication
+- 11 global regions (AWS + Azure)
+- Pooled connections
+- Free tier available
+- **Regions**: US East, US West, EU Central, EU West, Asia Pacific, South America
+
+### 🟢 Supabase (Open Source Firebase Alternative)
+
+- Project creation via CLI
+- Global region selection
+- Connection pooling
+- Generous free tier
+- **Features**: Real-time, Auth, Storage, Edge Functions
+
+### 🚂 Railway (Platform as a Service)
+
+- One-click PostgreSQL deployment
+- Automatic environment variables
+- Simple pricing
+- **Perfect for**: Quick deployments, side projects
+
+### 🐳 Local Docker
+
+- Instant local PostgreSQL
+- Pre-configured docker-compose
+- Perfect for development
+- No cloud account needed
 
 ## 🛠️ Requirements
 
 - Node.js >= 18.0.0 OR Bun >= 1.0.0
-- npm or yarn or pnpm or bun
+- npm, yarn, pnpm, or bun
 
-## 📚 API
+## 💡 Examples
 
-You can also use this as a library in your own Node.js projects:
+### Example 1: Standard Setup
 
-```typescript
-import { setupNeon, setupSupabase } from "@sidgaikwad/create-db-setup";
+```bash
+bunx @sidgaikwad/db-setup
+# Select: Neon
+# Select: .env (Root directory)
+# Select: DATABASE_URL (Standard)
+```
 
-// Use individual provider setups
-const databaseUrl = await setupNeon();
+### Example 2: Monorepo Setup
 
-// Or use the interactive CLI
-import { handleDatabaseSetup } from "@sidgaikwad/create-db-setup";
-const databaseUrl = await handleDatabaseSetup();
+```bash
+bunx @sidgaikwad/db-setup
+# Select: Neon
+# Select: apps/backend/.env (Monorepo backend)
+# Select: DATABASE_URL (Standard)
+```
+
+### Example 3: Custom Variable Name
+
+```bash
+bunx @sidgaikwad/db-setup
+# Select: Supabase
+# Select: .env.local (Local environment)
+# Select: POSTGRES_URL (Alternative)
+```
+
+### Example 4: Multiple Databases
+
+```bash
+# Primary database
+bunx @sidgaikwad/db-setup
+# Variable: DATABASE_URL
+
+# Analytics database
+bunx @sidgaikwad/db-setup
+# Variable: ANALYTICS_DATABASE_URL
+```
+
+## 🔧 Integration with Frameworks
+
+### Next.js
+
+```bash
+bun add @sidgaikwad/db-setup
+bunx @sidgaikwad/db-setup
+# Select: .env.local
+# Select: DATABASE_URL
+```
+
+### Remix
+
+```bash
+bun add @sidgaikwad/db-setup
+bunx @sidgaikwad/db-setup
+# Select: .env
+# Select: DATABASE_URL
+```
+
+### SvelteKit
+
+```bash
+bun add @sidgaikwad/db-setup
+bunx @sidgaikwad/db-setup
+# Select: .env
+# Select: DATABASE_URL
+```
+
+### Express/Fastify
+
+```bash
+npm install @sidgaikwad/db-setup
+npx @sidgaikwad/db-setup
+# Select: .env
+# Select: POSTGRES_URL
+```
+
+## 📝 Best Practices
+
+### ✅ DO:
+
+- Use `.env.local` for local development (not committed to git)
+- Use `.env.production` for production-specific variables
+- Use `.env.test` for testing environments
+- Keep backups of your `.env` files (CLI creates them automatically)
+- Use descriptive variable names for multiple databases
+
+### ❌ DON'T:
+
+- Don't commit `.env` files with real credentials to git
+- Don't use the same database for development and production
+- Don't forget to add `.env*` to your `.gitignore`
+
+### 🔒 Security
+
+**.gitignore:**
+
+```gitignore
+.env
+.env.local
+.env.*.local
+.env.backup
+```
+
+**.env.example** (commit this):
+
+```env
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 ```
 
 ## 🤝 Contributing
@@ -150,20 +312,28 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-MIT © [siddharth]
+MIT © [Siddharth Gaikwad](https://github.com/sidgaikwad)
 
 ## 🙏 Acknowledgments
 
 - [@inquirer/prompts](https://github.com/SBoudrias/Inquirer.js) for interactive CLI
 - [chalk](https://github.com/chalk/chalk) for terminal styling
-- All the database providers for their excellent CLIs
+- [Neon](https://neon.tech), [Supabase](https://supabase.com), [Railway](https://railway.app) for excellent database services
 
-## 🐛 Known Issues
+## 🐛 Issues & Support
 
-See [GitHub Issues](https://github.com/sidgaikwad/create-db-setup/issues)
+Found a bug or need help?
 
-## 📮 Support
-
+- 🐛 [Report an issue](https://github.com/sidgaikwad/db-setup/issues)
+- 💬 [Start a discussion](https://github.com/sidgaikwad/db-setup/discussions)
 - 📧 Email: gaikwadsiddharth039@gmail.com
-- 🐦 Twitter: [_sidd24_](https://twitter.com/_sidd24_)
-- 💬 Discord: [Join our server](https://discord.gg/mJp3dckf)
+
+## 📮 Links
+
+- 📦 [NPM Package](https://www.npmjs.com/package/@sidgaikwad/db-setup)
+- 🐙 [GitHub Repository](https://github.com/sidgaikwad/db-setup)
+- 📚 [Documentation](https://github.com/sidgaikwad/db-setup#readme)
+
+---
+
+Made with ❤️ by [Siddharth Gaikwad](https://github.com/sidgaikwad)
