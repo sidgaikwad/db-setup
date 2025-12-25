@@ -1,6 +1,6 @@
 {
   "name": "@sidgaikwad/db-setup",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Interactive CLI for setting up PostgreSQL databases with multiple providers (Neon, Supabase, Railway, Local)",
   "type": "module",
   "main": "dist/index.js",
