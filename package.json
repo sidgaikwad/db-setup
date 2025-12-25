@@ -2,6 +2,7 @@
   "name": "@sidgaikwad/db-setup",
   "version": "1.2.0",
   "description": "Interactive CLI for setting up PostgreSQL databases with multiple providers (Neon, Supabase, Railway, Local)",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -13,7 +14,8 @@
     "build:types": "tsc --emitDeclarationOnly",
     "prepublishOnly": "bun run build",
     "dev": "bun run src/index.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "postinstall": "node postinstall.js"
   },
   "keywords": [
     "database",
@@ -27,7 +29,9 @@
     "docker",
     "database-setup",
     "postgres-setup",
-    "interactive-cli"
+    "interactive-cli",
+    "bun",
+    "env"
   ],
   "author": "Siddharth Gaikwad <gaikwadsiddharth039@gmail.com>",
   "license": "MIT",
@@ -42,6 +46,7 @@
   "files": [
     "dist",
     "bin",
+    "postinstall.js",
     "README.md",
     "LICENSE"
   ],
@@ -51,8 +56,7 @@
   "dependencies": {
     "@inquirer/prompts": "^6.0.0",
     "chalk": "^5.3.0",
-    "dotenv": "^16.3.1",
-    "inquirer": "^13.1.0"
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
