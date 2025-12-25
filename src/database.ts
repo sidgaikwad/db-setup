@@ -2,7 +2,7 @@ import { select, input } from "@inquirer/prompts";
 import chalk from "chalk";
 import { setupNeon } from "./providers/neon";
 import { setupSupabase } from "./providers/supabase";
-import { setupRailway } from "./providers/railway";
+import { setupRailway } from "./providers/railway-pg";
 import { setupLocalDocker } from "./providers/local-docker";
 import { setupEnvironment, validateConnectionString } from "./env";
 
