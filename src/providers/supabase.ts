@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import inquirer from "inquirer";
+import { input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import { genAlphanumericPassword } from "../utils/db-utils.js";
 
@@ -13,7 +13,10 @@ interface SupabaseProject {
  * Check if user is authenticated with Supabase CLI
  */
 const checkSupabaseAuth = (): boolean => {
-  console.log(chalk.blueBright("\nChecking Supabase authentication..."));
+  process.stdout.write(
+    chalk.blueBright("\nChecking Supabase authentication... ")
+  );
+
   const authCheckResult = spawnSync("npx", ["supabase", "orgs", "list"], {
     encoding: "utf-8",
     shell: true,
@@ -21,13 +24,19 @@ const checkSupabaseAuth = (): boolean => {
   });
 
   if (authCheckResult.status !== 0) {
-    console.log(chalk.yellowBright("Not logged in to Supabase."));
-    console.log(chalk.blueBright("Launching Supabase login..."));
+    console.log(chalk.yellowBright("not logged in"));
+    console.log(chalk.blueBright("\n⏳ Launching Supabase login..."));
+    console.log(
+      chalk.gray("Please complete authentication in your browser.\n")
+    );
+
     spawnSync("npx", ["supabase", "login"], { stdio: "inherit", shell: true });
+
+    console.log(chalk.greenBright("\n✅ Authentication completed!"));
     return false;
   }
 
-  console.log(chalk.greenBright("✅ Already logged in to Supabase."));
+  console.log(chalk.greenBright("✓"));
   return true;
 };
 
@@ -57,16 +66,13 @@ const getOrCreateSupabaseOrg = async (): Promise<void> => {
   // No orgs exist
   if (lines.length <= sepIdx + 1) {
     console.log(chalk.yellowBright("No Supabase organizations found."));
-    const { createOrg } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "createOrg",
-        message: chalk.cyan(
-          "Would you like to create a new Supabase organization now?"
-        ),
-        default: true,
-      },
-    ]);
+
+    const createOrg = await confirm({
+      message: chalk.cyan(
+        "Would you like to create a new Supabase organization now?"
+      ),
+      default: true,
+    });
 
     if (!createOrg) {
       console.log(
@@ -77,14 +83,15 @@ const getOrCreateSupabaseOrg = async (): Promise<void> => {
       process.exit(1);
     }
 
-    const { orgName } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "orgName",
-        message: chalk.cyan("Enter a name for your new Supabase organization:"),
-        validate: (input: string) => input && input.length > 2,
+    const orgName = await input({
+      message: chalk.cyan("Enter a name for your new Supabase organization:"),
+      validate: (inputValue: string) => {
+        if (!inputValue || inputValue.length < 3) {
+          return "Organization name must be at least 3 characters";
+        }
+        return true;
       },
-    ]);
+    });
 
     console.log(
       chalk.blueBright(`\nCreating Supabase organization '${orgName}'...`)
@@ -178,27 +185,24 @@ export const setupSupabase = async (): Promise<string> => {
   await getOrCreateSupabaseOrg();
 
   // Project configuration
-  const { projectName } = await inquirer.prompt([
-    {
-      type: "input",
-      name: "projectName",
-      message: chalk.cyan("Enter a name for your Supabase project:"),
-      default: "ZeroStarter-oss-db",
-      validate: (input: string) => {
-        if (!input || input.trim().length === 0) {
-          return "Project name cannot be empty";
-        }
-        if (input.length > 64) {
-          return "Project name must be 64 characters or less";
-        }
-        // Supabase project names should be lowercase alphanumeric with hyphens
-        if (!/^[a-z0-9-]+$/.test(input)) {
-          return "Project name must contain only lowercase letters, numbers, and hyphens";
-        }
-        return true;
-      },
+  const projectName = await input({
+    message: chalk.cyan("Enter a name for your Supabase project:"),
+    default: "ZeroStarter-oss-db",
+    validate: (inputValue: string) => {
+      if (!inputValue || inputValue.trim().length === 0) {
+        return "Project name cannot be empty";
+      }
+      if (inputValue.length > 64) {
+        return "Project name must be 64 characters or less";
+      }
+      // Supabase project names should be lowercase alphanumeric with hyphens
+      if (!/^[a-z0-9-]+$/.test(inputValue)) {
+        return "Project name must contain only lowercase letters, numbers, and hyphens";
+      }
+      return true;
     },
-  ]);
+  });
+
   const dbPassword = genAlphanumericPassword(24);
 
   // Create project
