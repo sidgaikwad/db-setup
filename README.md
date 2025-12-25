@@ -2,7 +2,7 @@
 
 > Interactive CLI for setting up PostgreSQL databases with multiple providers
 
-[![npm version](https://badge.fury.io/js/%40yourusername%2Fcreate-db-setup.svg)](https://www.npmjs.com/package/@yourusername/create-db-setup)
+[![npm version](https://badge.fury.io/js/%40sidgaikwad%2Fcreate-db-setup.svg)](https://www.npmjs.com/package/@sidgaikwad/create-db-setup)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features
@@ -24,23 +24,23 @@
 ### Run with bunx (Recommended)
 
 ```bash
-bunx @yourusername/create-db-setup
+bunx @sidgaikwad/create-db-setup
 ```
 
 ### Or with npx
 
 ```bash
-npx @yourusername/create-db-setup
+npx @sidgaikwad/create-db-setup
 ```
 
 ### Or Install Globally
 
 ```bash
 # With Bun
-bun install -g @yourusername/create-db-setup
+bun install -g @sidgaikwad/create-db-setup
 
 # With npm
-npm install -g @yourusername/create-db-setup
+npm install -g @sidgaikwad/create-db-setup
 
 # Then run
 create-db-setup
@@ -49,7 +49,7 @@ create-db-setup
 ### Or use the shorter alias
 
 ```bash
-bunx @yourusername/create-db-setup
+bunx @sidgaikwad/create-db-setup
 # or after global install
 db-setup
 ```
@@ -87,7 +87,7 @@ db-setup
 Simply run the CLI and follow the prompts:
 
 ```bash
-$ bunx @yourusername/create-db-setup
+$ bunx @sidgaikwad/create-db-setup
 
 ================ Database Setup ================
 
@@ -128,13 +128,13 @@ The CLI now supports:
 You can also use this as a library in your own Node.js projects:
 
 ```typescript
-import { setupNeon, setupSupabase } from "@yourusername/create-db-setup";
+import { setupNeon, setupSupabase } from "@sidgaikwad/create-db-setup";
 
 // Use individual provider setups
 const databaseUrl = await setupNeon();
 
 // Or use the interactive CLI
-import { handleDatabaseSetup } from "@yourusername/create-db-setup";
+import { handleDatabaseSetup } from "@sidgaikwad/create-db-setup";
 const databaseUrl = await handleDatabaseSetup();
 ```
 
@@ -150,7 +150,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-MIT © [Your Name]
+MIT © [siddharth]
 
 ## 🙏 Acknowledgments
 
@@ -160,10 +160,10 @@ MIT © [Your Name]
 
 ## 🐛 Known Issues
 
-See [GitHub Issues](https://github.com/yourusername/create-db-setup/issues)
+See [GitHub Issues](https://github.com/sidgaikwad/create-db-setup/issues)
 
 ## 📮 Support
 
-- 📧 Email: your.email@example.com
-- 🐦 Twitter: [@yourusername](https://twitter.com/yourusername)
-- 💬 Discord: [Join our server](https://discord.gg/yourserver)
+- 📧 Email: gaikwadsiddharth039@gmail.com
+- 🐦 Twitter: [_sidd24_](https://twitter.com/_sidd24_)
+- 💬 Discord: [Join our server](https://discord.gg/mJp3dckf)
