@@ -212,7 +212,9 @@ export const setupSupabase = async (): Promise<string> => {
   );
 
   // Construct DATABASE_URL
-  const databaseUrl = `postgresql://postgres.${projectId}:${dbPassword}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+  const SESSION_POOLER_PORT = 5432;
+
+  const databaseUrl = `postgresql://postgres.${projectId}:${dbPassword}@aws-1-${region}.pooler.supabase.com:${SESSION_POOLER_PORT}/postgres`;
 
   console.log(chalk.greenBright(`\nGenerated DB password: ${dbPassword}\n`));
   console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
