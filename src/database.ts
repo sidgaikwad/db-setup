@@ -23,6 +23,8 @@ export async function handleDatabaseSetup(): Promise<string> {
         value: "supabase",
       },
       { name: "Railway (Platform as a Service)", value: "railway" },
+      { name: "Render (Cloud Hosting Platform)", value: "render" },
+      { name: "Vercel Postgres (Serverless PostgreSQL)", value: "vercel" },
       { name: "Local PostgreSQL (Docker)", value: "local" },
       { name: "I already have a DATABASE_URL", value: "manual" },
       { name: "I'll configure later", value: "later" },
