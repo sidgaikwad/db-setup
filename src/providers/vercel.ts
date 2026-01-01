@@ -102,32 +102,24 @@ const checkVercelAuth = (): boolean => {
 };
 
 /**
- * Get available Vercel regions
- */
-const getVercelRegions = (): Array<{ name: string; value: string }> => {
-  return [
-    { name: "🇺🇸 Washington, D.C. (US East)", value: "iad1" },
-    { name: "🇺🇸 San Francisco (US West)", value: "sfo1" },
-    { name: "🇪🇺 Frankfurt (Europe)", value: "fra1" },
-    { name: "🇸🇬 Singapore (Asia)", value: "sin1" },
-  ];
-};
-
-/**
  * Create Vercel Postgres database via CLI
  */
-const createVercelDatabase = async (
-  name: string,
-  region: string
-): Promise<string> => {
+const createVercelDatabase = async (name: string): Promise<string> => {
   console.log(
     chalk.blueBright(`\nCreating Vercel Postgres database '${name}'...`)
   );
-  console.log(chalk.cyan("You may be prompted to select a Vercel project.\n"));
+  console.log(
+    chalk.cyan(
+      "You will be prompted by Vercel CLI to:\n" +
+        "  • Select a region for your database\n" +
+        "  • Choose a Vercel project (if needed)\n"
+    )
+  );
 
+  // Vercel CLI command without --region flag (it will prompt interactively)
   const createResult = spawnSync(
     "vercel",
-    ["postgres", "create", name, "--region", region],
+    ["storage", "create", "postgres", name],
     {
       encoding: "utf-8",
       shell: true,
@@ -292,14 +284,6 @@ export const setupVercel = async (): Promise<string> => {
     return databaseUrl;
   }
 
-  const regions = getVercelRegions();
-
-  const selectedRegion = await select({
-    message: chalk.cyan("Choose your Vercel Postgres region:"),
-    default: "iad1",
-    choices: regions,
-  });
-
   const dbName = await input({
     message: chalk.cyan("Enter a name for your database:"),
     default: "zerostarter-db",
@@ -315,7 +299,7 @@ export const setupVercel = async (): Promise<string> => {
   });
 
   try {
-    const databaseUrl = await createVercelDatabase(dbName, selectedRegion);
+    const databaseUrl = await createVercelDatabase(dbName);
 
     console.log(
       chalk.greenBright(`\n✅ Vercel Postgres created successfully!`)
