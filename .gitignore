@@ -45,3 +45,5 @@ coverage/
 # Bun
 .bun/
 bun.lockb
+.vercel
+.env*.local

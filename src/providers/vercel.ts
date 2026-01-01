@@ -1,6 +1,8 @@
 import { spawnSync } from "child_process";
 import { input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Open URL in default browser
@@ -102,6 +104,31 @@ const checkVercelAuth = (): boolean => {
 };
 
 /**
+ * Setup Vercel project link
+ */
+const setupVercelProject = (): boolean => {
+  console.log(chalk.blueBright("\nLinking to Vercel project..."));
+  console.log(
+    chalk.cyan("You'll be prompted to select or create a Vercel project.\n")
+  );
+
+  const linkResult = spawnSync("vercel", ["link"], {
+    encoding: "utf-8",
+    shell: true,
+    stdio: "inherit",
+    cwd: process.cwd(),
+  });
+
+  if (linkResult.status !== 0) {
+    console.log(chalk.red("\n❌ Failed to link Vercel project."));
+    return false;
+  }
+
+  console.log(chalk.greenBright("\n✅ Project linked successfully!"));
+  return true;
+};
+
+/**
  * Create Vercel Postgres database via CLI
  */
 const createVercelDatabase = async (name: string): Promise<string> => {
@@ -112,14 +139,16 @@ const createVercelDatabase = async (name: string): Promise<string> => {
     chalk.cyan("The Vercel CLI will guide you through the setup process.\n")
   );
 
-  // The correct command is: vercel postgres create (without "storage")
-  // Just use the interactive mode
-  const createResult = spawnSync("npx", ["vercel", "postgres", "create"], {
-    encoding: "utf-8",
-    shell: true,
-    stdio: "inherit",
-    env: { ...process.env },
-  });
+  // Try using --cwd flag
+  const createResult = spawnSync(
+    "vercel",
+    ["postgres", "create", "--cwd", process.cwd()],
+    {
+      encoding: "utf-8",
+      shell: true,
+      stdio: "inherit",
+    }
+  );
 
   if (createResult.status !== 0) {
     console.error(chalk.red("\n❌ Failed to create Vercel Postgres database."));
@@ -134,40 +163,21 @@ const createVercelDatabase = async (name: string): Promise<string> => {
   // Wait a moment for the database to be ready
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  // List all Postgres databases to find the one we just created
-  console.log(chalk.dim("Retrieving database details...\n"));
-
-  const listResult = spawnSync("npx", ["vercel", "postgres", "ls"], {
+  // Try to pull environment variables
+  const envResult = spawnSync("vercel", ["env", "pull", ".env.vercel.local"], {
     encoding: "utf-8",
     shell: true,
     stdio: "pipe",
+    cwd: process.cwd(),
   });
 
-  if (listResult.status === 0) {
-    console.log(chalk.dim("Databases found. Fetching connection string...\n"));
-  }
-
-  // Try to pull environment variables
-  const envResult = spawnSync(
-    "npx",
-    ["vercel", "env", "pull", ".env.vercel.local"],
-    {
-      encoding: "utf-8",
-      shell: true,
-      stdio: "pipe",
-    }
-  );
-
   if (envResult.status === 0) {
-    const fs = require("fs");
-    const path = require("path");
-
     try {
       const envPath = path.join(process.cwd(), ".env.vercel.local");
       if (fs.existsSync(envPath)) {
         const envContent = fs.readFileSync(envPath, "utf-8");
 
-        // Look for POSTGRES_URL or any URL with the database name
+        // Look for POSTGRES_URL
         const postgresUrlMatch = envContent.match(/POSTGRES_URL="?([^"\n]+)"?/);
 
         if (postgresUrlMatch && postgresUrlMatch[1]) {
@@ -194,7 +204,7 @@ const createVercelDatabase = async (name: string): Promise<string> => {
   );
   console.log(chalk.cyan("\nPlease follow these steps:"));
   console.log(chalk.white("1. Go to: https://vercel.com/dashboard/stores"));
-  console.log(chalk.white(`2. Find your database: ${name}`));
+  console.log(chalk.white(`2. Find your database`));
   console.log(chalk.white("3. Go to the '.env.local' tab"));
   console.log(chalk.white("4. Copy the POSTGRES_URL value\n"));
 
@@ -299,6 +309,27 @@ export const setupVercel = async (): Promise<string> => {
     console.log(
       chalk.yellow(
         "\n⚠️  Switching to manual setup due to authentication issues...\n"
+      )
+    );
+
+    const databaseUrl = await setupVercelManually();
+
+    console.log(
+      chalk.greenBright(`\n✅ Vercel Postgres configured successfully!`)
+    );
+    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
+    console.log(chalk.yellow("--------------------------------"));
+
+    return databaseUrl;
+  }
+
+  // Link to Vercel project first
+  const projectLinked = setupVercelProject();
+
+  if (!projectLinked) {
+    console.log(
+      chalk.yellow(
+        "\n⚠️  Could not link project. Switching to manual setup...\n"
       )
     );
 
