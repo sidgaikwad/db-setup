@@ -5,6 +5,8 @@ import { setupSupabase } from "./providers/supabase";
 import { setupRailway } from "./providers/railway-pg";
 import { setupLocalDocker } from "./providers/local-docker";
 import { setupEnvironment, validateConnectionString } from "./env";
+import { setupRender } from "./providers/render";
+import { setupVercel } from "./providers/vercel";
 
 export async function handleDatabaseSetup(): Promise<string> {
   console.log(
@@ -40,6 +42,14 @@ export async function handleDatabaseSetup(): Promise<string> {
 
     case "railway":
       databaseUrl = await setupRailway();
+      break;
+
+    case "render":
+      databaseUrl = await setupRender();
+      break;
+
+    case "vercel":
+      databaseUrl = await setupVercel();
       break;
 
     case "local":
