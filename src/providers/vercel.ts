@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { select, input, confirm } from "@inquirer/prompts";
+import { input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 
 /**
@@ -109,46 +109,56 @@ const createVercelDatabase = async (name: string): Promise<string> => {
     chalk.blueBright(`\nCreating Vercel Postgres database '${name}'...`)
   );
   console.log(
-    chalk.cyan(
-      "You will be prompted by Vercel CLI to:\n" +
-        "  • Select a region for your database\n" +
-        "  • Choose a Vercel project (if needed)\n"
-    )
+    chalk.cyan("The Vercel CLI will guide you through the setup process.\n")
   );
 
-  // Vercel CLI command without --region flag (it will prompt interactively)
-  const createResult = spawnSync(
-    "vercel",
-    ["storage", "create", "postgres", name],
-    {
-      encoding: "utf-8",
-      shell: true,
-      stdio: "inherit",
-    }
-  );
+  // The correct command is: vercel postgres create (without "storage")
+  // Just use the interactive mode
+  const createResult = spawnSync("npx", ["vercel", "postgres", "create"], {
+    encoding: "utf-8",
+    shell: true,
+    stdio: "inherit",
+    env: { ...process.env },
+  });
 
   if (createResult.status !== 0) {
     console.error(chalk.red("\n❌ Failed to create Vercel Postgres database."));
     throw new Error("Database creation failed");
   }
 
-  console.log(chalk.greenBright(`\n✅ Database '${name}' created!`));
+  console.log(chalk.greenBright(`\n✅ Database created!`));
 
   // Get connection string
   console.log(chalk.blueBright("\nFetching connection string..."));
 
   // Wait a moment for the database to be ready
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  // Try to get the connection string using vercel env pull
-  const envResult = spawnSync("vercel", ["env", "pull", ".env.vercel.local"], {
+  // List all Postgres databases to find the one we just created
+  console.log(chalk.dim("Retrieving database details...\n"));
+
+  const listResult = spawnSync("npx", ["vercel", "postgres", "ls"], {
     encoding: "utf-8",
     shell: true,
     stdio: "pipe",
   });
 
+  if (listResult.status === 0) {
+    console.log(chalk.dim("Databases found. Fetching connection string...\n"));
+  }
+
+  // Try to pull environment variables
+  const envResult = spawnSync(
+    "npx",
+    ["vercel", "env", "pull", ".env.vercel.local"],
+    {
+      encoding: "utf-8",
+      shell: true,
+      stdio: "pipe",
+    }
+  );
+
   if (envResult.status === 0) {
-    // Try to read the connection string from .env.vercel.local
     const fs = require("fs");
     const path = require("path");
 
@@ -156,19 +166,25 @@ const createVercelDatabase = async (name: string): Promise<string> => {
       const envPath = path.join(process.cwd(), ".env.vercel.local");
       if (fs.existsSync(envPath)) {
         const envContent = fs.readFileSync(envPath, "utf-8");
-        const match = envContent.match(/POSTGRES_URL="?([^"\n]+)"?/);
 
-        if (match && match[1]) {
+        // Look for POSTGRES_URL or any URL with the database name
+        const postgresUrlMatch = envContent.match(/POSTGRES_URL="?([^"\n]+)"?/);
+
+        if (postgresUrlMatch && postgresUrlMatch[1]) {
           console.log(chalk.greenBright("✅ Connection string retrieved!"));
 
           // Clean up the temp file
-          fs.unlinkSync(envPath);
+          try {
+            fs.unlinkSync(envPath);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
 
-          return match[1];
+          return postgresUrlMatch[1];
         }
       }
     } catch (error) {
-      // Fall through to manual input
+      console.log(chalk.dim("Could not read .env file automatically."));
     }
   }
 
@@ -176,8 +192,21 @@ const createVercelDatabase = async (name: string): Promise<string> => {
   console.log(
     chalk.yellow("\n⚠️  Could not automatically fetch connection string.")
   );
-  console.log(chalk.cyan("Please get your POSTGRES_URL from:"));
-  console.log(chalk.white("https://vercel.com/dashboard/stores\n"));
+  console.log(chalk.cyan("\nPlease follow these steps:"));
+  console.log(chalk.white("1. Go to: https://vercel.com/dashboard/stores"));
+  console.log(chalk.white(`2. Find your database: ${name}`));
+  console.log(chalk.white("3. Go to the '.env.local' tab"));
+  console.log(chalk.white("4. Copy the POSTGRES_URL value\n"));
+
+  const shouldOpen = await confirm({
+    message: "Open Vercel dashboard now?",
+    default: true,
+  });
+
+  if (shouldOpen) {
+    openBrowser("https://vercel.com/dashboard/stores");
+    console.log(chalk.greenBright("✅ Browser opened!\n"));
+  }
 
   const databaseUrl = await input({
     message: chalk.cyan("Paste your POSTGRES_URL here:"),
