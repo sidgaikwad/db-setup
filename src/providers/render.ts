@@ -1,11 +1,29 @@
 import { spawnSync } from "child_process";
-import { select, input } from "@inquirer/prompts";
+import { select, input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 
 /**
- * Check if Render CLI is installed
+ * Open URL in default browser
  */
-const ensureRenderCli = (): void => {
+const openBrowser = (url: string): void => {
+  const platform = process.platform;
+  let command: string;
+
+  if (platform === "darwin") {
+    command = "open";
+  } else if (platform === "win32") {
+    command = "start";
+  } else {
+    command = "xdg-open";
+  }
+
+  spawnSync(command, [url], { shell: true, stdio: "ignore" });
+};
+
+/**
+ * Check if Render CLI is installed and offer to install it
+ */
+const ensureRenderCli = async (): Promise<boolean> => {
   const check = spawnSync("render", ["--version"], {
     encoding: "utf-8",
     shell: true,
@@ -13,20 +31,97 @@ const ensureRenderCli = (): void => {
   });
 
   if (check.status !== 0) {
-    console.log(chalk.yellowBright("Render CLI not found. Installing..."));
-    console.log(chalk.cyan("\nPlease install Render CLI manually:"));
-    console.log(chalk.white("  npm install -g @render-cli/cli"));
-    console.log(chalk.white("  or"));
-    console.log(chalk.white("  brew install renderinc/tap/render"));
-    console.log(chalk.yellow("\nAfter installing, run this setup again."));
-    process.exit(1);
+    console.log(chalk.yellowBright("\n⚠️  Render CLI is not installed."));
+
+    const shouldInstall = await confirm({
+      message: "Would you like to install Render CLI automatically?",
+      default: true,
+    });
+
+    if (!shouldInstall) {
+      return false;
+    }
+
+    console.log(chalk.blueBright("\nInstalling Render CLI..."));
+    // Fixed package name: it's just "render" not "@render-cli/cli"
+    const install = spawnSync("npm", ["install", "-g", "render"], {
+      shell: true,
+      stdio: "inherit",
+    });
+
+    if (install.status !== 0) {
+      console.log(
+        chalk.red("\n❌ Failed to install Render CLI automatically.")
+      );
+      console.log(chalk.yellow("\nPlease install manually:"));
+      console.log(chalk.white("  npm install -g render"));
+      console.log(chalk.white("  or"));
+      console.log(chalk.white("  brew install renderinc/tap/render"));
+      return false;
+    }
+
+    console.log(chalk.greenBright("\n✅ Render CLI installed successfully!"));
+    return true;
   }
+
+  return true;
+};
+
+/**
+ * Manual setup for Render (web-based)
+ */
+const setupRenderManually = async (): Promise<string> => {
+  console.log(chalk.blueBright("\n📝 Manual Render PostgreSQL Setup\n"));
+  console.log(chalk.cyan("Follow these steps to create your database:\n"));
+  console.log(
+    chalk.white("1. Go to: https://dashboard.render.com/new/database")
+  );
+  console.log(chalk.white("2. Click 'New PostgreSQL'"));
+  console.log(chalk.white("3. Choose a name and region"));
+  console.log(
+    chalk.white("4. Select the 'Free' plan (or your preferred plan)")
+  );
+  console.log(chalk.white("5. Click 'Create Database'"));
+  console.log(
+    chalk.white("6. Once created, find the 'External Database URL' section")
+  );
+  console.log(chalk.white("7. Copy the connection string\n"));
+
+  const shouldOpenBrowser = await confirm({
+    message: "Would you like to open Render dashboard in your browser?",
+    default: true,
+  });
+
+  if (shouldOpenBrowser) {
+    openBrowser("https://dashboard.render.com/new/database");
+    console.log(chalk.greenBright("\n✅ Browser opened!"));
+  }
+
+  console.log(chalk.yellow("\n⏳ Waiting for you to create the database...\n"));
+
+  const databaseUrl = await input({
+    message: chalk.cyan("Paste your External Database URL here:"),
+    validate: (inputValue: string) => {
+      if (!inputValue || inputValue.trim().length === 0) {
+        return "Connection string cannot be empty";
+      }
+      if (
+        !inputValue.startsWith("postgres://") &&
+        !inputValue.startsWith("postgresql://")
+      ) {
+        return "Invalid PostgreSQL connection string. Should start with postgres:// or postgresql://";
+      }
+      return true;
+    },
+  });
+
+  return databaseUrl;
 };
 
 /**
  * Check authentication with Render
  */
-const checkRenderAuth = (): boolean => {
+const checkRenderAuth = async (): Promise<boolean> => {
   console.log(chalk.blueBright("\nChecking Render authentication..."));
 
   const authCheck = spawnSync("render", ["whoami"], {
@@ -38,11 +133,7 @@ const checkRenderAuth = (): boolean => {
   if (authCheck.status !== 0) {
     console.log(chalk.yellowBright("Not logged in to Render."));
     console.log(chalk.blueBright("\nTo authenticate with Render:"));
-    console.log(
-      chalk.cyan(
-        "You'll need to create an API key at: https://dashboard.render.com/u/settings#api-keys\n"
-      )
-    );
+    console.log(chalk.cyan("Opening authentication flow...\n"));
 
     const loginResult = spawnSync("render", ["login"], {
       stdio: "inherit",
@@ -51,7 +142,7 @@ const checkRenderAuth = (): boolean => {
 
     if (loginResult.status !== 0) {
       console.log(chalk.red("\n❌ Authentication failed."));
-      process.exit(1);
+      return false;
     }
 
     console.log(
@@ -77,23 +168,16 @@ const getRenderRegions = (): Array<{ name: string; value: string }> => {
 };
 
 /**
- * Create Render PostgreSQL database
+ * Create Render PostgreSQL database via CLI
  */
-const createRenderDatabase = async (
+const createRenderDatabaseCLI = async (
   name: string,
   region: string
-): Promise<{
-  host: string;
-  database: string;
-  user: string;
-  password: string;
-  port: number;
-}> => {
+): Promise<string> => {
   console.log(
     chalk.blueBright(`\nCreating Render PostgreSQL database '${name}'...`)
   );
 
-  // Create database using Render CLI
   const createResult = spawnSync(
     "render",
     [
@@ -105,100 +189,52 @@ const createRenderDatabase = async (
       "--region",
       region,
       "--plan",
-      "free", // or "starter" for paid plan
-      "--json",
+      "free",
     ],
     {
       encoding: "utf-8",
       shell: true,
-      stdio: "pipe",
+      stdio: "inherit",
     }
   );
 
   if (createResult.status !== 0) {
     console.error(chalk.red("\n❌ Failed to create Render database."));
-    console.error(chalk.red(createResult.stderr));
-    process.exit(1);
+    throw new Error("Database creation failed");
   }
 
-  try {
-    const result = JSON.parse(createResult.stdout);
+  console.log(
+    chalk.blueBright(
+      "\n⏳ Waiting for database to provision (this may take 2-3 minutes)..."
+    )
+  );
+  console.log(
+    chalk.dim("You can also check status at: https://dashboard.render.com\n")
+  );
 
-    console.log(
-      chalk.blueBright(
-        "\nWaiting for database to provision (this may take 2-3 minutes)..."
-      )
-    );
+  // Give it some time to provision
+  await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Wait for database to be ready
-    let ready = false;
-    let attempts = 0;
-    const maxAttempts = 60; // 5 minutes
+  // Get the connection string
+  console.log(chalk.blueBright("\nFetching connection string..."));
+  console.log(
+    chalk.yellow(
+      "Please check your Render dashboard for the External Database URL."
+    )
+  );
+  console.log(chalk.cyan("https://dashboard.render.com\n"));
 
-    while (!ready && attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      const statusResult = spawnSync(
-        "render",
-        ["services", "get", result.id, "--json"],
-        {
-          encoding: "utf-8",
-          shell: true,
-          stdio: "pipe",
-        }
-      );
-
-      if (statusResult.status === 0) {
-        const status = JSON.parse(statusResult.stdout);
-        if (status.status === "available") {
-          ready = true;
-        }
+  const databaseUrl = await input({
+    message: chalk.cyan("Paste your External Database URL:"),
+    validate: (inputValue: string) => {
+      if (!inputValue || !inputValue.startsWith("postgres")) {
+        return "Invalid PostgreSQL connection string";
       }
+      return true;
+    },
+  });
 
-      attempts++;
-      if (attempts % 6 === 0) {
-        console.log(chalk.dim(`Still waiting... (${attempts * 5}s elapsed)`));
-      }
-    }
-
-    if (!ready) {
-      console.error(chalk.red("\n❌ Database took too long to provision."));
-      console.log(
-        chalk.yellow("Please check your Render dashboard for status.")
-      );
-      process.exit(1);
-    }
-
-    // Get connection details
-    const detailsResult = spawnSync(
-      "render",
-      ["services", "get", result.id, "--json"],
-      {
-        encoding: "utf-8",
-        shell: true,
-        stdio: "pipe",
-      }
-    );
-
-    if (detailsResult.status !== 0) {
-      console.error(chalk.red("❌ Failed to get database details."));
-      process.exit(1);
-    }
-
-    const details = JSON.parse(detailsResult.stdout);
-
-    return {
-      host: details.postgres?.host || details.host,
-      database: details.postgres?.database || name,
-      user: details.postgres?.user || "postgres",
-      password: details.postgres?.password || "",
-      port: details.postgres?.port || 5432,
-    };
-  } catch (error) {
-    console.error(chalk.red("❌ Failed to parse database response."));
-    console.error(chalk.yellow("Raw output:"), createResult.stdout);
-    process.exit(1);
-  }
+  return databaseUrl;
 };
 
 /**
@@ -211,8 +247,42 @@ export const setupRender = async (): Promise<string> => {
     )
   );
 
-  ensureRenderCli();
-  checkRenderAuth();
+  // Check if CLI is installed
+  const hasRenderCli = await ensureRenderCli();
+
+  if (!hasRenderCli) {
+    // Fallback to manual setup
+    console.log(chalk.blueBright("\n🔄 Switching to manual setup...\n"));
+    const databaseUrl = await setupRenderManually();
+
+    console.log(
+      chalk.greenBright(`\n✅ Render PostgreSQL configured successfully!`)
+    );
+    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
+    console.log(chalk.yellow("--------------------------------"));
+
+    return databaseUrl;
+  }
+
+  // Check authentication
+  const isAuthenticated = await checkRenderAuth();
+
+  if (!isAuthenticated) {
+    console.log(
+      chalk.yellow(
+        "\n⚠️  Switching to manual setup due to authentication issues...\n"
+      )
+    );
+    const databaseUrl = await setupRenderManually();
+
+    console.log(
+      chalk.greenBright(`\n✅ Render PostgreSQL configured successfully!`)
+    );
+    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
+    console.log(chalk.yellow("--------------------------------"));
+
+    return databaseUrl;
+  }
 
   const regions = getRenderRegions();
 
@@ -236,15 +306,28 @@ export const setupRender = async (): Promise<string> => {
     },
   });
 
-  const dbConfig = await createRenderDatabase(dbName, selectedRegion);
+  try {
+    const databaseUrl = await createRenderDatabaseCLI(dbName, selectedRegion);
 
-  const databaseUrl = `postgresql://${dbConfig.user}:${dbConfig.password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.database}?sslmode=require`;
+    console.log(
+      chalk.greenBright(`\n✅ Render PostgreSQL created successfully!`)
+    );
+    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
+    console.log(chalk.yellow("--------------------------------"));
 
-  console.log(
-    chalk.greenBright(`\n✅ Render PostgreSQL created successfully!`)
-  );
-  console.log(chalk.greenBright(`\nDATABASE_URL:\n${databaseUrl}\n`));
-  console.log(chalk.yellow("--------------------------------"));
+    return databaseUrl;
+  } catch (error) {
+    console.log(
+      chalk.yellow("\n⚠️  CLI setup failed. Switching to manual setup...\n")
+    );
+    const databaseUrl = await setupRenderManually();
 
-  return databaseUrl;
+    console.log(
+      chalk.greenBright(`\n✅ Render PostgreSQL configured successfully!`)
+    );
+    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
+    console.log(chalk.yellow("--------------------------------"));
+
+    return databaseUrl;
+  }
 };
