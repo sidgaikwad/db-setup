@@ -21,17 +21,48 @@ const openBrowser = (url: string): void => {
 };
 
 /**
+ * Try different ways to run avn command
+ */
+const runAvnCommand = (args: string[], options: any = {}) => {
+  // Try direct avn command
+  let result = spawnSync("avn", args, { ...options, shell: true });
+
+  if (result.status === 0 || result.error?.code !== "ENOENT") {
+    return result;
+  }
+
+  // Try python -m aiven.client
+  result = spawnSync("python", ["-m", "aiven.client", ...args], {
+    ...options,
+    shell: true,
+  });
+
+  if (result.status === 0 || result.error?.code !== "ENOENT") {
+    return result;
+  }
+
+  // Try python3 -m aiven.client
+  result = spawnSync("python3", ["-m", "aiven.client", ...args], {
+    ...options,
+    shell: true,
+  });
+
+  return result;
+};
+
+/**
  * Check if Aiven CLI is installed and offer to install it
  */
 const ensureAivenCli = async (): Promise<boolean> => {
-  const check = spawnSync("avn", ["--version"], {
+  const check = runAvnCommand(["--version"], {
     encoding: "utf-8",
-    shell: true,
     stdio: "pipe",
   });
 
   if (check.status !== 0) {
-    console.log(chalk.yellowBright("\n⚠️  Aiven CLI is not installed."));
+    console.log(
+      chalk.yellowBright("\n⚠️  Aiven CLI is not installed or not in PATH.")
+    );
 
     const shouldInstall = await confirm({
       message: "Would you like to install Aiven CLI automatically?",
@@ -43,14 +74,26 @@ const ensureAivenCli = async (): Promise<boolean> => {
     }
 
     console.log(chalk.blueBright("\nInstalling Aiven CLI..."));
-    const install = spawnSync("pip3", ["install", "aiven-client"], {
+
+    // Try pip3 first
+    let install = spawnSync("pip3", ["install", "aiven-client"], {
       shell: true,
       stdio: "inherit",
     });
 
+    // If pip3 fails, try pip
+    if (install.status !== 0) {
+      install = spawnSync("pip", ["install", "aiven-client"], {
+        shell: true,
+        stdio: "inherit",
+      });
+    }
+
     if (install.status !== 0) {
       console.log(chalk.red("\n❌ Failed to install Aiven CLI automatically."));
       console.log(chalk.yellow("\nPlease install manually:"));
+      console.log(chalk.white("  pip install aiven-client"));
+      console.log(chalk.white("  or"));
       console.log(chalk.white("  pip3 install aiven-client"));
       console.log(chalk.white("  or"));
       console.log(chalk.white("  brew install aiven"));
@@ -58,6 +101,21 @@ const ensureAivenCli = async (): Promise<boolean> => {
     }
 
     console.log(chalk.greenBright("\n✅ Aiven CLI installed successfully!"));
+
+    // Check if avn is now available
+    const recheckDirect = spawnSync("avn", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+      stdio: "pipe",
+    });
+
+    if (recheckDirect.status !== 0) {
+      console.log(chalk.yellow("\n⚠️  'avn' command not found in PATH."));
+      console.log(
+        chalk.yellow("The CLI will use 'python -m aiven.client' instead.")
+      );
+    }
+
     return true;
   }
 
@@ -70,9 +128,8 @@ const ensureAivenCli = async (): Promise<boolean> => {
 const checkAivenAuth = (): boolean => {
   console.log(chalk.blueBright("\nChecking Aiven authentication..."));
 
-  const authCheck = spawnSync("avn", ["user", "info"], {
+  const authCheck = runAvnCommand(["user", "info"], {
     encoding: "utf-8",
-    shell: true,
     stdio: "pipe",
   });
 
@@ -83,9 +140,8 @@ const checkAivenAuth = (): boolean => {
       chalk.cyan("You'll need to provide your email and password.\n")
     );
 
-    const loginResult = spawnSync("avn", ["user", "login"], {
+    const loginResult = runAvnCommand(["user", "login"], {
       stdio: "inherit",
-      shell: true,
     });
 
     if (loginResult.status !== 0) {
@@ -126,9 +182,8 @@ const getAivenClouds = (): Array<{ name: string; value: string }> => {
 const getAivenProject = async (): Promise<string> => {
   console.log(chalk.blueBright("\nFetching Aiven projects..."));
 
-  const projectsResult = spawnSync("avn", ["project", "list", "--json"], {
+  const projectsResult = runAvnCommand(["project", "list", "--json"], {
     encoding: "utf-8",
-    shell: true,
     stdio: "pipe",
   });
 
@@ -145,12 +200,10 @@ const getAivenProject = async (): Promise<string> => {
         chalk.yellow("\n⚠️  No projects found. Creating a default project...")
       );
 
-      const createResult = spawnSync(
-        "avn",
+      const createResult = runAvnCommand(
         ["project", "create", "zerostarter-project"],
         {
           encoding: "utf-8",
-          shell: true,
           stdio: "inherit",
         }
       );
@@ -171,7 +224,7 @@ const getAivenProject = async (): Promise<string> => {
     }
 
     // Let user choose from multiple projects
-    const choices: Array<{ name: string; value: string }> = projects.map((p: any) => ({
+    const choices = projects.map((p: any) => ({
       name: p.project_name,
       value: p.project_name,
     }));
@@ -201,8 +254,7 @@ const createAivenService = async (
   );
 
   // Create service with free plan (hobbyist)
-  const createResult = spawnSync(
-    "avn",
+  const createResult = runAvnCommand(
     [
       "service",
       "create",
@@ -218,7 +270,6 @@ const createAivenService = async (
     ],
     {
       encoding: "utf-8",
-      shell: true,
       stdio: "inherit",
     }
   );
@@ -243,12 +294,10 @@ const createAivenService = async (
   while (!isRunning && attempts < maxAttempts) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const statusResult = spawnSync(
-      "avn",
+    const statusResult = runAvnCommand(
       ["service", "get", serviceName, "--project", project, "--json"],
       {
         encoding: "utf-8",
-        shell: true,
         stdio: "pipe",
       }
     );
@@ -288,12 +337,10 @@ const getAivenConnectionString = (
 ): string => {
   console.log(chalk.blueBright("\nFetching connection string..."));
 
-  const serviceResult = spawnSync(
-    "avn",
+  const serviceResult = runAvnCommand(
     ["service", "get", serviceName, "--project", project, "--json"],
     {
       encoding: "utf-8",
-      shell: true,
       stdio: "pipe",
     }
   );
