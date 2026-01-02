@@ -104,9 +104,80 @@ const checkVercelAuth = (): boolean => {
 };
 
 /**
- * Setup Vercel project link
+ * Create a temporary Next.js project structure
  */
-const setupVercelProject = (): boolean => {
+const createTempNextJsProject = (tempDir: string): void => {
+  // Create directory
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+
+  // Create minimal package.json for Next.js
+  const packageJson = {
+    name: "vercel-postgres-temp",
+    version: "1.0.0",
+    private: true,
+    scripts: {
+      dev: "next dev",
+      build: "next build",
+      start: "next start",
+    },
+    dependencies: {
+      next: "latest",
+      react: "latest",
+      "react-dom": "latest",
+    },
+  };
+
+  fs.writeFileSync(
+    path.join(tempDir, "package.json"),
+    JSON.stringify(packageJson, null, 2)
+  );
+
+  // Create app directory (Next.js App Router)
+  const appDir = path.join(tempDir, "app");
+  if (!fs.existsSync(appDir)) {
+    fs.mkdirSync(appDir, { recursive: true });
+  }
+
+  // Create a simple page.tsx
+  const pageTsx = `export default function Home() {
+  return <div>Vercel Postgres Setup</div>
+}`;
+
+  fs.writeFileSync(path.join(appDir, "page.tsx"), pageTsx);
+
+  // Create next.config.js
+  const nextConfig = `/** @type {import('next').NextConfig} */
+const nextConfig = {}
+
+module.exports = nextConfig`;
+
+  fs.writeFileSync(path.join(tempDir, "next.config.js"), nextConfig);
+
+  console.log(chalk.dim(`Created temporary Next.js project at: ${tempDir}`));
+};
+
+/**
+ * Clean up temporary project
+ */
+const cleanupTempProject = (tempDir: string): void => {
+  try {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      console.log(chalk.dim("Cleaned up temporary project"));
+    }
+  } catch (error) {
+    console.log(
+      chalk.dim("Could not clean up temporary project (non-critical)")
+    );
+  }
+};
+
+/**
+ * Setup Vercel project link in temp directory
+ */
+const setupVercelProject = (tempDir: string): boolean => {
   console.log(chalk.blueBright("\nLinking to Vercel project..."));
   console.log(
     chalk.cyan("You'll be prompted to select or create a Vercel project.\n")
@@ -116,7 +187,7 @@ const setupVercelProject = (): boolean => {
     encoding: "utf-8",
     shell: true,
     stdio: "inherit",
-    cwd: process.cwd(),
+    cwd: tempDir,
   });
 
   if (linkResult.status !== 0) {
@@ -131,7 +202,10 @@ const setupVercelProject = (): boolean => {
 /**
  * Create Vercel Postgres database via CLI
  */
-const createVercelDatabase = async (name: string): Promise<string> => {
+const createVercelDatabase = async (
+  name: string,
+  tempDir: string
+): Promise<string> => {
   console.log(
     chalk.blueBright(`\nCreating Vercel Postgres database '${name}'...`)
   );
@@ -139,16 +213,12 @@ const createVercelDatabase = async (name: string): Promise<string> => {
     chalk.cyan("The Vercel CLI will guide you through the setup process.\n")
   );
 
-  // Try using --cwd flag
-  const createResult = spawnSync(
-    "vercel",
-    ["postgres", "create", "--cwd", process.cwd()],
-    {
-      encoding: "utf-8",
-      shell: true,
-      stdio: "inherit",
-    }
-  );
+  const createResult = spawnSync("vercel", ["postgres", "create"], {
+    encoding: "utf-8",
+    shell: true,
+    stdio: "inherit",
+    cwd: tempDir,
+  });
 
   if (createResult.status !== 0) {
     console.error(chalk.red("\n❌ Failed to create Vercel Postgres database."));
@@ -164,16 +234,16 @@ const createVercelDatabase = async (name: string): Promise<string> => {
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // Try to pull environment variables
-  const envResult = spawnSync("vercel", ["env", "pull", ".env.vercel.local"], {
+  const envResult = spawnSync("vercel", ["env", "pull", ".env.local"], {
     encoding: "utf-8",
     shell: true,
     stdio: "pipe",
-    cwd: process.cwd(),
+    cwd: tempDir,
   });
 
   if (envResult.status === 0) {
     try {
-      const envPath = path.join(process.cwd(), ".env.vercel.local");
+      const envPath = path.join(tempDir, ".env.local");
       if (fs.existsSync(envPath)) {
         const envContent = fs.readFileSync(envPath, "utf-8");
 
@@ -182,14 +252,6 @@ const createVercelDatabase = async (name: string): Promise<string> => {
 
         if (postgresUrlMatch && postgresUrlMatch[1]) {
           console.log(chalk.greenBright("✅ Connection string retrieved!"));
-
-          // Clean up the temp file
-          try {
-            fs.unlinkSync(envPath);
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-
           return postgresUrlMatch[1];
         }
       }
@@ -204,7 +266,7 @@ const createVercelDatabase = async (name: string): Promise<string> => {
   );
   console.log(chalk.cyan("\nPlease follow these steps:"));
   console.log(chalk.white("1. Go to: https://vercel.com/dashboard/stores"));
-  console.log(chalk.white(`2. Find your database`));
+  console.log(chalk.white(`2. Find your database: ${name}`));
   console.log(chalk.white("3. Go to the '.env.local' tab"));
   console.log(chalk.white("4. Copy the POSTGRES_URL value\n"));
 
@@ -232,7 +294,7 @@ const createVercelDatabase = async (name: string): Promise<string> => {
 };
 
 /**
- * Manual setup for Vercel (web-based)
+ * Manual setup for Vercel (web-based) - fallback only
  */
 const setupVercelManually = async (): Promise<string> => {
   console.log(chalk.blueBright("\n📝 Vercel Postgres Setup\n"));
@@ -323,43 +385,40 @@ export const setupVercel = async (): Promise<string> => {
     return databaseUrl;
   }
 
-  // Link to Vercel project first
-  const projectLinked = setupVercelProject();
-
-  if (!projectLinked) {
-    console.log(
-      chalk.yellow(
-        "\n⚠️  Could not link project. Switching to manual setup...\n"
-      )
-    );
-
-    const databaseUrl = await setupVercelManually();
-
-    console.log(
-      chalk.greenBright(`\n✅ Vercel Postgres configured successfully!`)
-    );
-    console.log(chalk.greenBright(`\nYour DATABASE_URL is:\n${databaseUrl}\n`));
-    console.log(chalk.yellow("--------------------------------"));
-
-    return databaseUrl;
-  }
-
-  const dbName = await input({
-    message: chalk.cyan("Enter a name for your database:"),
-    default: "zerostarter-db",
-    validate: (inputValue: string) => {
-      if (!inputValue || inputValue.trim().length === 0) {
-        return "Database name cannot be empty";
-      }
-      if (!/^[a-z0-9-_]+$/.test(inputValue)) {
-        return "Database name must contain only lowercase letters, numbers, hyphens, and underscores";
-      }
-      return true;
-    },
-  });
+  // Create temporary Next.js project
+  const tempDir = path.join(process.cwd(), ".vercel-temp-project");
+  console.log(
+    chalk.blueBright("\nCreating temporary Next.js project structure...")
+  );
 
   try {
-    const databaseUrl = await createVercelDatabase(dbName);
+    createTempNextJsProject(tempDir);
+
+    // Link to Vercel project
+    const projectLinked = setupVercelProject(tempDir);
+
+    if (!projectLinked) {
+      throw new Error("Project linking failed");
+    }
+
+    const dbName = await input({
+      message: chalk.cyan("Enter a name for your database:"),
+      default: "zerostarter-db",
+      validate: (inputValue: string) => {
+        if (!inputValue || inputValue.trim().length === 0) {
+          return "Database name cannot be empty";
+        }
+        if (!/^[a-z0-9-_]+$/.test(inputValue)) {
+          return "Database name must contain only lowercase letters, numbers, hyphens, and underscores";
+        }
+        return true;
+      },
+    });
+
+    const databaseUrl = await createVercelDatabase(dbName, tempDir);
+
+    // Clean up temp project
+    cleanupTempProject(tempDir);
 
     console.log(
       chalk.greenBright(`\n✅ Vercel Postgres created successfully!`)
@@ -369,6 +428,9 @@ export const setupVercel = async (): Promise<string> => {
 
     return databaseUrl;
   } catch (error) {
+    // Clean up temp project on error
+    cleanupTempProject(tempDir);
+
     console.log(
       chalk.yellow("\n⚠️  CLI setup failed. Switching to manual setup...\n")
     );
