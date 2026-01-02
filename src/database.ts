@@ -7,6 +7,7 @@ import { setupLocalDocker } from "./providers/local-docker";
 import { setupEnvironment, validateConnectionString } from "./env";
 import { setupRender } from "./providers/render";
 import { setupVercel } from "./providers/vercel";
+import { setupAiven } from "./providers/aiven";
 
 export async function handleDatabaseSetup(): Promise<string> {
   console.log(
@@ -23,6 +24,7 @@ export async function handleDatabaseSetup(): Promise<string> {
         value: "supabase",
       },
       { name: "Railway (Platform as a Service)", value: "railway" },
+      { name: "Aiven (Managed Cloud Databases)", value: "aiven" },
       { name: "Render (Cloud Hosting Platform)", value: "render" },
       { name: "Vercel Postgres (Serverless PostgreSQL)", value: "vercel" },
       { name: "Local PostgreSQL (Docker)", value: "local" },
@@ -44,6 +46,10 @@ export async function handleDatabaseSetup(): Promise<string> {
 
     case "railway":
       databaseUrl = await setupRailway();
+      break;
+
+    case "aiven":
+      databaseUrl = await setupAiven();
       break;
 
     case "render":
