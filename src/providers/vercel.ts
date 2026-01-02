@@ -3,6 +3,7 @@ import { input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 /**
  * Open URL in default browser
@@ -104,13 +105,14 @@ const checkVercelAuth = (): boolean => {
 };
 
 /**
- * Create a temporary Next.js project structure
+ * Create a temporary Next.js project structure in OS temp directory
  */
-const createTempNextJsProject = (tempDir: string): void => {
+const createTempNextJsProject = (): string => {
+  // Use OS temp directory to avoid conflicts
+  const tempDir = path.join(os.tmpdir(), `vercel-pg-${Date.now()}`);
+
   // Create directory
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
+  fs.mkdirSync(tempDir, { recursive: true });
 
   // Create minimal package.json for Next.js
   const packageJson = {
@@ -136,9 +138,7 @@ const createTempNextJsProject = (tempDir: string): void => {
 
   // Create app directory (Next.js App Router)
   const appDir = path.join(tempDir, "app");
-  if (!fs.existsSync(appDir)) {
-    fs.mkdirSync(appDir, { recursive: true });
-  }
+  fs.mkdirSync(appDir, { recursive: true });
 
   // Create a simple page.tsx
   const pageTsx = `export default function Home() {
@@ -156,6 +156,7 @@ module.exports = nextConfig`;
   fs.writeFileSync(path.join(tempDir, "next.config.js"), nextConfig);
 
   console.log(chalk.dim(`Created temporary Next.js project at: ${tempDir}`));
+  return tempDir;
 };
 
 /**
@@ -175,7 +176,7 @@ const cleanupTempProject = (tempDir: string): void => {
 };
 
 /**
- * Setup Vercel project link in temp directory
+ * Setup Vercel project link - standard way
  */
 const setupVercelProject = (tempDir: string): boolean => {
   console.log(chalk.blueBright("\nLinking to Vercel project..."));
@@ -183,6 +184,7 @@ const setupVercelProject = (tempDir: string): boolean => {
     chalk.cyan("You'll be prompted to select or create a Vercel project.\n")
   );
 
+  // Use standard vercel link (without --repo)
   const linkResult = spawnSync("vercel", ["link"], {
     encoding: "utf-8",
     shell: true,
@@ -192,6 +194,68 @@ const setupVercelProject = (tempDir: string): boolean => {
 
   if (linkResult.status !== 0) {
     console.log(chalk.red("\n❌ Failed to link Vercel project."));
+    return false;
+  }
+
+  // Wait a moment for files to be written
+  console.log(chalk.dim("Waiting for project files to be created..."));
+  const waitTime = 2000; // 2 seconds
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < waitTime) {
+    // Busy wait
+  }
+
+  // Verify that .vercel/project.json exists
+  const vercelDir = path.join(tempDir, ".vercel");
+  const projectJsonPath = path.join(vercelDir, "project.json");
+
+  if (!fs.existsSync(vercelDir)) {
+    console.log(chalk.red("\n❌ .vercel directory not created."));
+    console.log(chalk.dim(`Looking in: ${vercelDir}`));
+    console.log(chalk.dim(`Directory contents:`));
+    try {
+      const contents = fs.readdirSync(tempDir);
+      console.log(chalk.dim(contents.join(", ")));
+    } catch (e) {
+      console.log(chalk.dim("Could not read directory"));
+    }
+    return false;
+  }
+
+  if (!fs.existsSync(projectJsonPath)) {
+    console.log(
+      chalk.red(
+        "\n❌ Project linking incomplete - .vercel/project.json not found."
+      )
+    );
+    console.log(chalk.dim(`Looking for: ${projectJsonPath}`));
+    console.log(chalk.dim(`.vercel directory contents:`));
+    try {
+      const contents = fs.readdirSync(vercelDir);
+      console.log(chalk.dim(contents.join(", ")));
+    } catch (e) {
+      console.log(chalk.dim("Could not read .vercel directory"));
+    }
+    return false;
+  }
+
+  // Read and verify project.json has required fields
+  try {
+    const projectJson = JSON.parse(fs.readFileSync(projectJsonPath, "utf-8"));
+    if (!projectJson.projectId || !projectJson.orgId) {
+      console.log(
+        chalk.red(
+          "\n❌ Project linking incomplete - missing projectId or orgId."
+        )
+      );
+      return false;
+    }
+    console.log(chalk.dim(`Project ID: ${projectJson.projectId}`));
+    console.log(chalk.dim(`Org ID: ${projectJson.orgId}`));
+  } catch (error) {
+    console.log(chalk.red("\n❌ Failed to read .vercel/project.json"));
+    console.log(chalk.dim(`Error: ${error}`));
     return false;
   }
 
@@ -210,9 +274,10 @@ const createVercelDatabase = async (
     chalk.blueBright(`\nCreating Vercel Postgres database '${name}'...`)
   );
   console.log(
-    chalk.cyan("The Vercel CLI will guide you through the setup process.\n")
+    chalk.cyan("The Vercel CLI will guide you through region selection.\n")
   );
 
+  // Run from the tempDir where .vercel/project.json exists
   const createResult = spawnSync("vercel", ["postgres", "create"], {
     encoding: "utf-8",
     shell: true,
@@ -385,20 +450,21 @@ export const setupVercel = async (): Promise<string> => {
     return databaseUrl;
   }
 
-  // Create temporary Next.js project
-  const tempDir = path.join(process.cwd(), ".vercel-temp-project");
+  // Create temporary Next.js project in OS temp directory
   console.log(
     chalk.blueBright("\nCreating temporary Next.js project structure...")
   );
 
+  let tempDir: string | null = null;
+
   try {
-    createTempNextJsProject(tempDir);
+    tempDir = createTempNextJsProject();
 
     // Link to Vercel project
     const projectLinked = setupVercelProject(tempDir);
 
     if (!projectLinked) {
-      throw new Error("Project linking failed");
+      throw new Error("Project linking failed or incomplete");
     }
 
     const dbName = await input({
@@ -418,7 +484,9 @@ export const setupVercel = async (): Promise<string> => {
     const databaseUrl = await createVercelDatabase(dbName, tempDir);
 
     // Clean up temp project
-    cleanupTempProject(tempDir);
+    if (tempDir) {
+      cleanupTempProject(tempDir);
+    }
 
     console.log(
       chalk.greenBright(`\n✅ Vercel Postgres created successfully!`)
@@ -429,7 +497,9 @@ export const setupVercel = async (): Promise<string> => {
     return databaseUrl;
   } catch (error) {
     // Clean up temp project on error
-    cleanupTempProject(tempDir);
+    if (tempDir) {
+      cleanupTempProject(tempDir);
+    }
 
     console.log(
       chalk.yellow("\n⚠️  CLI setup failed. Switching to manual setup...\n")
