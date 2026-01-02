@@ -21,45 +21,89 @@ const openBrowser = (url: string): void => {
 };
 
 /**
- * Try different ways to run avn command
+ * Detect which command works for Aiven CLI
  */
-const runAvnCommand = (args: string[], options: any = {}) => {
+const detectAvnCommand = (): {
+  cmd: string;
+  args: (originalArgs: string[]) => string[];
+} | null => {
   // Try direct avn command
-  let result = spawnSync("avn", args, { ...options, shell: true });
+  const directTest = spawnSync("avn", ["--version"], {
+    encoding: "utf-8",
+    shell: true,
+    stdio: "pipe",
+  });
 
-  if (result.status === 0 || result.error?.code !== "ENOENT") {
-    return result;
+  if (directTest.status === 0) {
+    return {
+      cmd: "avn",
+      args: (originalArgs) => originalArgs,
+    };
   }
 
   // Try python -m aiven.client
-  result = spawnSync("python", ["-m", "aiven.client", ...args], {
-    ...options,
+  const pythonTest = spawnSync("python", ["-m", "aiven.client", "--version"], {
+    encoding: "utf-8",
     shell: true,
+    stdio: "pipe",
   });
 
-  if (result.status === 0 || result.error?.code !== "ENOENT") {
-    return result;
+  if (pythonTest.status === 0) {
+    return {
+      cmd: "python",
+      args: (originalArgs) => ["-m", "aiven.client", ...originalArgs],
+    };
   }
 
   // Try python3 -m aiven.client
-  result = spawnSync("python3", ["-m", "aiven.client", ...args], {
+  const python3Test = spawnSync(
+    "python3",
+    ["-m", "aiven.client", "--version"],
+    {
+      encoding: "utf-8",
+      shell: true,
+      stdio: "pipe",
+    }
+  );
+
+  if (python3Test.status === 0) {
+    return {
+      cmd: "python3",
+      args: (originalArgs) => ["-m", "aiven.client", ...originalArgs],
+    };
+  }
+
+  return null;
+};
+
+// Global variable to store the detected command
+let avnCommandConfig: {
+  cmd: string;
+  args: (originalArgs: string[]) => string[];
+} | null = null;
+
+/**
+ * Run Aiven CLI command using detected method
+ */
+const runAvnCommand = (args: string[], options: any = {}) => {
+  if (!avnCommandConfig) {
+    throw new Error("Aiven CLI not configured");
+  }
+
+  return spawnSync(avnCommandConfig.cmd, avnCommandConfig.args(args), {
     ...options,
     shell: true,
   });
-
-  return result;
 };
 
 /**
  * Check if Aiven CLI is installed and offer to install it
  */
 const ensureAivenCli = async (): Promise<boolean> => {
-  const check = runAvnCommand(["--version"], {
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
+  // Try to detect how to run avn
+  avnCommandConfig = detectAvnCommand();
 
-  if (check.status !== 0) {
+  if (!avnCommandConfig) {
     console.log(
       chalk.yellowBright("\n⚠️  Aiven CLI is not installed or not in PATH.")
     );
@@ -75,15 +119,15 @@ const ensureAivenCli = async (): Promise<boolean> => {
 
     console.log(chalk.blueBright("\nInstalling Aiven CLI..."));
 
-    // Try pip3 first
-    let install = spawnSync("pip3", ["install", "aiven-client"], {
+    // Try pip first
+    let install = spawnSync("pip", ["install", "aiven-client"], {
       shell: true,
       stdio: "inherit",
     });
 
-    // If pip3 fails, try pip
+    // If pip fails, try pip3
     if (install.status !== 0) {
-      install = spawnSync("pip", ["install", "aiven-client"], {
+      install = spawnSync("pip3", ["install", "aiven-client"], {
         shell: true,
         stdio: "inherit",
       });
@@ -102,21 +146,34 @@ const ensureAivenCli = async (): Promise<boolean> => {
 
     console.log(chalk.greenBright("\n✅ Aiven CLI installed successfully!"));
 
-    // Check if avn is now available
-    const recheckDirect = spawnSync("avn", ["--version"], {
-      encoding: "utf-8",
-      shell: true,
-      stdio: "pipe",
-    });
+    // Re-detect after installation
+    avnCommandConfig = detectAvnCommand();
 
-    if (recheckDirect.status !== 0) {
-      console.log(chalk.yellow("\n⚠️  'avn' command not found in PATH."));
+    if (!avnCommandConfig) {
       console.log(
-        chalk.yellow("The CLI will use 'python -m aiven.client' instead.")
+        chalk.red("\n❌ Aiven CLI installed but still not accessible.")
+      );
+      console.log(chalk.yellow("This might be a PATH issue."));
+      return false;
+    }
+
+    if (avnCommandConfig.cmd !== "avn") {
+      console.log(
+        chalk.yellow(
+          `\n⚠️  'avn' command not found in PATH. Using '${avnCommandConfig.cmd} -m aiven.client' instead.`
+        )
       );
     }
 
     return true;
+  }
+
+  if (avnCommandConfig.cmd !== "avn") {
+    console.log(
+      chalk.dim(
+        `Using '${avnCommandConfig.cmd} -m aiven.client' to run Aiven CLI commands.`
+      )
+    );
   }
 
   return true;
@@ -232,7 +289,7 @@ const getAivenProject = async (): Promise<string> => {
     const selectedProject = await select({
       message: chalk.cyan("Select an Aiven project:"),
       choices,
-    });
+    }) as string;
 
     return selectedProject;
   } catch (error) {
