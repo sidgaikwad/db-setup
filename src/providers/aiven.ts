@@ -180,9 +180,9 @@ const ensureAivenCli = async (): Promise<boolean> => {
 };
 
 /**
- * Check authentication with Aiven
+ * Check authentication with Aiven using API token
  */
-const checkAivenAuth = (): boolean => {
+const checkAivenAuth = async (): Promise<boolean> => {
   console.log(chalk.blueBright("\nChecking Aiven authentication..."));
 
   const authCheck = runAvnCommand(["user", "info"], {
@@ -192,17 +192,59 @@ const checkAivenAuth = (): boolean => {
 
   if (authCheck.status !== 0) {
     console.log(chalk.yellowBright("Not logged in to Aiven."));
-    console.log(chalk.blueBright("\nTo authenticate with Aiven:"));
     console.log(
-      chalk.cyan("You'll need to provide your email and password.\n")
+      chalk.blueBright("\nAiven CLI requires an API token for authentication.")
+    );
+    console.log(
+      chalk.cyan(
+        "If you signed up with GitHub/Google, you need to create an API token.\n"
+      )
     );
 
-    const loginResult = runAvnCommand(["user", "login"], {
+    const useToken = await confirm({
+      message: "Do you want to authenticate using an API token?",
+      default: true,
+    });
+
+    if (!useToken) {
+      return false;
+    }
+
+    console.log(chalk.cyan("\nTo create an API token:"));
+    console.log(chalk.white("1. Go to: https://console.aiven.io/profile/auth"));
+    console.log(chalk.white("2. Click 'Generate token'"));
+    console.log(chalk.white("3. Give it a name (e.g., 'CLI Access')"));
+    console.log(chalk.white("4. Set permissions to 'Full access'"));
+    console.log(chalk.white("5. Click 'Generate token'"));
+    console.log(chalk.white("6. Copy the token\n"));
+
+    const shouldOpen = await confirm({
+      message: "Open Aiven profile page in your browser?",
+      default: true,
+    });
+
+    if (shouldOpen) {
+      openBrowser("https://console.aiven.io/profile/auth");
+      console.log(chalk.greenBright("✅ Browser opened!\n"));
+    }
+
+    const apiToken = await input({
+      message: chalk.cyan("Paste your Aiven API token here:"),
+      validate: (inputValue: string) => {
+        if (!inputValue || inputValue.trim().length === 0) {
+          return "API token cannot be empty";
+        }
+        return true;
+      },
+    });
+
+    // Authenticate with token
+    const loginResult = runAvnCommand(["user", "login", apiToken.trim()], {
       stdio: "inherit",
     });
 
     if (loginResult.status !== 0) {
-      console.log(chalk.red("\n❌ Authentication failed."));
+      console.log(chalk.red("\n❌ Authentication with token failed."));
       return false;
     }
 
@@ -281,7 +323,7 @@ const getAivenProject = async (): Promise<string> => {
     }
 
     // Let user choose from multiple projects
-    const choices = projects.map((p: any) => ({
+    const choices: Array<{ name: string; value: string }> = projects.map((p: any) => ({
       name: p.project_name,
       value: p.project_name,
     }));
@@ -289,9 +331,9 @@ const getAivenProject = async (): Promise<string> => {
     const selectedProject = await select({
       message: chalk.cyan("Select an Aiven project:"),
       choices,
-    }) as string;
+    });
 
-    return selectedProject;
+    return selectedProject as string;
   } catch (error) {
     console.log(chalk.red("❌ Failed to parse projects."));
     throw error;
@@ -493,7 +535,7 @@ export const setupAiven = async (): Promise<string> => {
     return databaseUrl;
   }
 
-  const isAuthenticated = checkAivenAuth();
+  const isAuthenticated = await checkAivenAuth();
 
   if (!isAuthenticated) {
     console.log(
